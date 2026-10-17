@@ -26,7 +26,7 @@ Amazon connection instructions: https://developer.amazon.com/docs/fire-tv/connec
 
 A deploy/jump, B slide, X reload, Y or RB switch weapon, LB dash, left stick move, right stick aim, LT aim down sights, RT fire, left stick click sprint, right stick click slash, D-pad up orbital strike, Start pause/resume. Back opens the app exit menu.
 
-The game menu's controller setup and fire remapping remain available. The build's signing key is retained in GitHub Actions cache where available; if a future debug build reports a signing conflict, uninstall the old app before installing the new one.
+The game menu's controller setup and fire remapping remain available. Version 0.2.1 uses a permanent signing key stored in encrypted GitHub Actions secrets, and the build verifies the public certificate fingerprint before publishing. Uninstall the original test build once to migrate to this key. Future builds retain this signing identity.
 
 ## Build
 
@@ -37,3 +37,7 @@ GitHub Actions builds and publishes the APK automatically when the app or index.
 Install this APK once over the previous version. It removes the normal input debug banner, caps TV rendering at 1280×720, disables expensive TV shadow/outline passes, reduces particles and radar refresh work, and frees expired projectile/particle GPU resources. Desktop graphics remain unchanged.
 
 On each launch, the app checks the GitHub release for game content updates in the background. A newer compatible HTML update is downloaded into private app storage and verified against its SHA-256 digest before it is used. It applies on the next launch, without interrupting a match. Offline startup uses the last validated download or the bundled game. Native Android changes still require an APK install; this updater does not silently install APKs. No extra installation permission is needed for game content updates.
+
+## Signing migration in 0.2.1
+
+The original test APK and the 0.2.0 APK used different automatically generated debug signing certificates. Fire OS rejects that as an in-place update. Uninstall the original app once, then install call-of-doom-fire-tv-v0.2.1.apk. The permanent signing key is held in GitHub Actions repository secrets, and its public fingerprint is checked during every build. For local builds, provide FIRE_TV_KEYSTORE_PATH and FIRE_TV_SIGNING_PASSWORD. Never commit the private keystore or password.

@@ -1,9 +1,19 @@
 plugins { id 'com.android.application' }
 android {
  namespace 'com.invisionx.skoolyard'
+ signingConfigs {
+  permanent {
+   storeFile file(System.getenv('FIRE_TV_KEYSTORE_PATH') ?: 'missing-signing-key.p12')
+   storePassword System.getenv('FIRE_TV_SIGNING_PASSWORD')
+   keyAlias 'skoolyard'
+   keyPassword System.getenv('FIRE_TV_SIGNING_PASSWORD')
+   storeType 'PKCS12'
+  }
+ }
+ buildTypes { debug { signingConfig signingConfigs.permanent } }
  buildFeatures { buildConfig true }
  compileSdk 35
- defaultConfig { applicationId 'com.invisionx.skoolyard'; minSdk 25; targetSdk 28; versionCode 2; versionName '0.2.0'; buildConfigField 'long', 'GAME_CONTENT_VERSION', (System.getenv('GITHUB_RUN_NUMBER') ?: '0') + 'L' }
+ defaultConfig { applicationId 'com.invisionx.skoolyard'; minSdk 25; targetSdk 28; versionCode 3; versionName '0.2.1'; buildConfigField 'long', 'GAME_CONTENT_VERSION', (System.getenv('GITHUB_RUN_NUMBER') ?: '0') + 'L' }
 }
 tasks.register('bundleGame', Copy) { from '../../index.html'; into 'src/main/assets' }
 preBuild.dependsOn bundleGame

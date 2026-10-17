@@ -23,15 +23,25 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.9'
-      - uses: actions/cache@v4
-        with:
-          path: ~/.android/debug.keystore
-          key: skoolyard-tv-debug-signing-v1
       - name: Build APK
         working-directory: fire-tv
-        run: gradle --no-daemon :app:assembleDebug
+        env:
+          FIRE_TV_KEYSTORE_BASE64: ${{ secrets.FIRE_TV_KEYSTORE_BASE64 }}
+          FIRE_TV_SIGNING_PASSWORD: ${{ secrets.FIRE_TV_SIGNING_PASSWORD }}
+          FIRE_TV_KEYSTORE_PATH: ${{ runner.temp }}/fire-tv-signing.p12
+        run: |
+          test -n "$FIRE_TV_KEYSTORE_BASE64"
+          printf '%s' "$FIRE_TV_KEYSTORE_BASE64" | base64 --decode > "$FIRE_TV_KEYSTORE_PATH"
+          gradle --no-daemon :app:assembleDebug
+          rm -f "$FIRE_TV_KEYSTORE_PATH"
       - name: Name APK
         run: cp fire-tv/app/build/outputs/apk/debug/app-debug.apk call-of-doom-fire-tv.apk
+      - name: Verify permanent APK signer
+        run: |
+          signer_expected="$(tr -d '\r\n' < fire-tv/signing-certificate.sha256)"
+          signer_actual="$("$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --print-certs call-of-doom-fire-tv.apk | sed -n 's/^Signer #1 certificate SHA-256 digest: //p')"
+          test "$signer_expected" = "$signer_actual"
+          cp call-of-doom-fire-tv.apk call-of-doom-fire-tv-v0.2.1.apk
       - name: Prepare game content update
         run: |
           cp index.html game.html
@@ -47,6 +57,6 @@ jobs:
           if ! gh release view fire-tv-latest >/dev/null 2>&1; then
             gh release create fire-tv-latest --target "$GITHUB_SHA" --title "Fire TV app — test build" --notes "Installable Fire OS 7+ APK with native controller input. Internet required for web dependencies. Hardware testing pending. See fire-tv/README.md for installation."
           fi
-          gh release upload fire-tv-latest call-of-doom-fire-tv.apk game.html --clobber
+          gh release upload fire-tv-latest call-of-doom-fire-tv.apk call-of-doom-fire-tv-v0.2.1.apk game.html --clobber
           gh release upload fire-tv-latest game-update.json --clobber
-          gh release edit fire-tv-latest --title "Fire TV app v0.2.0" --notes "Native Xbox controller input, TV performance settings, and automatic game content updates. Install this APK once; future compatible game updates download on launch and apply on the next launch. Native app changes still need an APK install. See fire-tv/README.md."
+          gh release edit fire-tv-latest --title "Fire TV app v0.2.1" --notes "Native Xbox controller input, TV performance settings, and automatic game content updates. Install this APK once; future compatible game updates download on launch and apply on the next launch. Native app changes still need an APK install. See fire-tv/README.md."
