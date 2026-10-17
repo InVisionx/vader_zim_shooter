@@ -32,6 +32,10 @@ jobs:
         run: gradle --no-daemon :app:assembleDebug
       - name: Name APK
         run: cp fire-tv/app/build/outputs/apk/debug/app-debug.apk call-of-doom-fire-tv.apk
+      - name: Prepare game content update
+        run: |
+          cp index.html game.html
+          node -e "const fs=require('fs'),crypto=require('crypto');fs.writeFileSync('game-update.json',JSON.stringify({version:Number(process.env.GITHUB_RUN_NUMBER),minAppVersion:2,sha256:crypto.createHash('sha256').update(fs.readFileSync('game.html')).digest('hex')}))"
       - uses: actions/upload-artifact@v4
         with:
           name: call-of-doom-fire-tv
@@ -43,5 +47,6 @@ jobs:
           if ! gh release view fire-tv-latest >/dev/null 2>&1; then
             gh release create fire-tv-latest --target "$GITHUB_SHA" --title "Fire TV app — test build" --notes "Installable Fire OS 7+ APK with native controller input. Internet required for web dependencies. Hardware testing pending. See fire-tv/README.md for installation."
           fi
-          gh release upload fire-tv-latest call-of-doom-fire-tv.apk --clobber
-
+          gh release upload fire-tv-latest call-of-doom-fire-tv.apk game.html --clobber
+          gh release upload fire-tv-latest game-update.json --clobber
+          gh release edit fire-tv-latest --title "Fire TV app v0.2.0" --notes "Native Xbox controller input, TV performance settings, and automatic game content updates. Install this APK once; future compatible game updates download on launch and apply on the next launch. Native app changes still need an APK install. See fire-tv/README.md."

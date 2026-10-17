@@ -1,8 +1,9 @@
 plugins { id 'com.android.application' }
 android {
  namespace 'com.invisionx.skoolyard'
+ buildFeatures { buildConfig true }
  compileSdk 35
- defaultConfig { applicationId 'com.invisionx.skoolyard'; minSdk 25; targetSdk 28; versionCode 1; versionName '0.1.0' }
+ defaultConfig { applicationId 'com.invisionx.skoolyard'; minSdk 25; targetSdk 28; versionCode 2; versionName '0.2.0'; buildConfigField 'long', 'GAME_CONTENT_VERSION', (System.getenv('GITHUB_RUN_NUMBER') ?: '0') + 'L' }
 }
 tasks.register('bundleGame', Copy) { from '../../index.html'; into 'src/main/assets' }
 preBuild.dependsOn bundleGame

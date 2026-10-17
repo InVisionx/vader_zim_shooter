@@ -25,6 +25,7 @@ public class MainActivity extends Activity implements InputManager.InputDeviceLi
     private final float[] buttons = new float[17];
     private final boolean[] keyButtons = new boolean[17];
     private int deviceId = -1;
+    private boolean updateCheckStarted;
     private boolean ready, dirty = true, active = false;
     private final Runnable pump = new Runnable() {
         @Override public void run() {
@@ -40,6 +41,7 @@ public class MainActivity extends Activity implements InputManager.InputDeviceLi
         web = new WebView(this);
         web.setBackgroundColor(0xff101622);
         web.getSettings().setJavaScriptEnabled(true);
+        web.getSettings().setUserAgentString(web.getSettings().getUserAgentString()+" SkoolyardTV/0.2");
         web.getSettings().setDomStorageEnabled(true);
         web.getSettings().setMediaPlaybackRequiresUserGesture(false);
         web.getSettings().setAllowFileAccess(false);
@@ -47,18 +49,16 @@ public class MainActivity extends Activity implements InputManager.InputDeviceLi
         web.setFocusableInTouchMode(true);
         web.setWebViewClient(new WebViewClient() {
             @Override public boolean shouldOverrideUrlLoading(WebView view, String url) { return true; }
-            @Override public void onPageFinished(WebView view, String url) { ready = true; dirty = true; }
+            @Override public void onPageFinished(WebView view, String url) { ready = true; dirty = true; if(!updateCheckStarted){updateCheckStarted=true;handler.postDelayed(()->GameUpdates.check(MainActivity.this),3000);} }
         });
         setContentView(web);
         web.requestFocus();
         inputs = (InputManager) getSystemService(INPUT_SERVICE);
         inputs.registerInputDeviceListener(this, handler);
         findController();
-        try (java.io.InputStream stream = getAssets().open("index.html")) {
-            java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
-            byte[] buffer = new byte[8192]; int count;
-            while ((count = stream.read(buffer)) != -1) out.write(buffer, 0, count);
-            web.loadDataWithBaseURL("https://invisionx.github.io/vader_zim_shooter/", out.toString("UTF-8"), "text/html", "UTF-8", null);
+        try {
+            String html=GameUpdates.startupHTML(this);
+            web.loadDataWithBaseURL("https://invisionx.github.io/vader_zim_shooter/", html, "text/html", "UTF-8", null);
         } catch (Exception e) {
             new AlertDialog.Builder(this).setTitle("Game could not load").setMessage(e.getMessage()).setPositiveButton("Close", (d,w)->finish()).show();
         }

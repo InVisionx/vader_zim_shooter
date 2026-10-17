@@ -31,3 +31,9 @@ The game menu's controller setup and fire remapping remain available. The build'
 ## Build
 
 GitHub Actions builds and publishes the APK automatically when the app or index.html changes. For a local build, use Java 17, Android SDK 35, and Gradle 8.9, then run `gradle :app:assembleDebug` inside fire-tv.
+
+## Version 0.2: performance and automatic game updates
+
+Install this APK once over the previous version. It removes the normal input debug banner, caps TV rendering at 1280×720, disables expensive TV shadow/outline passes, reduces particles and radar refresh work, and frees expired projectile/particle GPU resources. Desktop graphics remain unchanged.
+
+On each launch, the app checks the GitHub release for game content updates in the background. A newer compatible HTML update is downloaded into private app storage and verified against its SHA-256 digest before it is used. It applies on the next launch, without interrupting a match. Offline startup uses the last validated download or the bundled game. Native Android changes still require an APK install; this updater does not silently install APKs. No extra installation permission is needed for game content updates.
