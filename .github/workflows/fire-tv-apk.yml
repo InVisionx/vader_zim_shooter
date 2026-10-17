@@ -1,0 +1,44 @@
+name: Build Fire TV app
+on:
+  workflow_dispatch:
+  push:
+    paths: ['fire-tv/**', '.github/workflows/fire-tv-apk.yml', 'index.html']
+permissions:
+  contents: write
+concurrency:
+  group: fire-tv-build
+  cancel-in-progress: true
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+      - uses: actions/cache@v4
+        with:
+          path: ~/.android/debug.keystore
+          key: skoolyard-tv-debug-signing-v1
+      - name: Build APK
+        working-directory: fire-tv
+        run: gradle --no-daemon :app:assembleDebug
+      - name: Name APK
+        run: cp fire-tv/app/build/outputs/apk/debug/app-debug.apk call-of-doom-fire-tv.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: call-of-doom-fire-tv
+          path: call-of-doom-fire-tv.apk
+      - name: Publish installable test build
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if ! gh release view fire-tv-latest >/dev/null 2>&1; then
+            gh release create fire-tv-latest --target "$GITHUB_SHA" --title "Fire TV app — test build" --notes "Installable Fire OS 7+ APK with native controller input. Internet required for web dependencies. Hardware testing pending. See fire-tv/README.md for installation."
+          fi
+          gh release upload fire-tv-latest call-of-doom-fire-tv.apk --clobber

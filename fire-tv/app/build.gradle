@@ -1,0 +1,8 @@
+plugins { id 'com.android.application' }
+android {
+ namespace 'com.invisionx.skoolyard'
+ compileSdk 35
+ defaultConfig { applicationId 'com.invisionx.skoolyard'; minSdk 25; targetSdk 28; versionCode 1; versionName '0.1.0' }
+}
+tasks.register('bundleGame', Copy) { from '../../index.html'; into 'src/main/assets' }
+preBuild.dependsOn bundleGame

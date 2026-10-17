@@ -3215,6 +3215,7 @@ function pollController(dt){
  document.body.classList.toggle("controller-playing",gameState.isPlaying&&controllerMode());
  diagnostic.style.display=(!gameState.isPlaying||/Silk|AFT/i.test(navigator.userAgent||''))?'block':'none';
  let pads=[];padError='';try{const getPads=navigator.getGamepads||navigator.webkitGetGamepads;pads=getPads?Array.from(getPads.call(navigator)):[];if(!getPads)padError='This browser does not expose the Gamepad API.';}catch(err){padError='Gamepad access blocked: '+err.message;}
+ if(window.__fireTVPad)pads=[window.__fireTVPad];
  const available=pads.filter(p=>p&&p.connected!==false);
  let p=available.find(p=>p.buttons.some(b=>b.pressed)||p.axes.some(a=>Math.abs(a)>.3))||available.find(p=>p.index===padIndex)||available[0];
  if(!p){badge.textContent='v4 · Keyboard + mouse · Click game to capture mouse';diagnostic.textContent='BUILD v4 · '+(padError||'No gamepad data received. If A acts like a mouse click, the TV may be exposing only remote/mouse input. Pair the controller in gamepad mode, or use a browser/device with Gamepad API support.');document.getElementById('pad-status').textContent='No controller input detected · Press a button to connect';if(controllerMode())badge.textContent='Controller mode · Waiting for real gamepad input';if(padInput.connected){pauseMatch();document.getElementById('pad-status').textContent='Controller disconnected — reconnect and press a button';badge.textContent='Controller disconnected · Match paused';}padInput.connected=false;padPrevious=[];padIndex=null;return;}
