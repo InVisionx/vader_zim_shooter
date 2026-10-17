@@ -1,0 +1,20 @@
+plugins { id 'com.android.application' }
+def buildNumber=(System.getenv('GITHUB_RUN_NUMBER') ?: '1').toInteger()
+android {
+ namespace 'dev.gameapk.runtime'
+ compileSdk 35
+ buildFeatures { buildConfig true }
+ defaultConfig {
+  applicationId 'dev.invisionx.skoolyardbuildertest'
+  minSdk 25
+  targetSdk 28
+  versionCode 100000 + buildNumber
+  versionName "1.0.$buildNumber"
+  buildConfigField 'String', 'ENTRY_FILE', '"index.html"'
+  buildConfigField 'String', 'RELEASE_ROOT', '"https://github.com/InVisionx/vader_zim_shooter/releases/download/game-apk-latest/"'
+  buildConfigField 'boolean', 'AUTO_UPDATES', 'true'
+ }
+ signingConfigs { permanent { storeFile file(System.getenv('GAME_KEY_PATH') ?: 'missing-key.p12'); storePassword System.getenv('GAME_KEY_PASSWORD'); keyAlias 'game'; keyPassword System.getenv('GAME_KEY_PASSWORD'); storeType 'PKCS12' } }
+ buildTypes { debug { signingConfig signingConfigs.permanent } }
+}
+dependencies { implementation 'androidx.core:core:1.13.1' }

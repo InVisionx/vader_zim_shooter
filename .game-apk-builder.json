@@ -1,0 +1,11 @@
+{
+  "schema": 1,
+  "appName": "Call of Doom - Builder Test",
+  "packageId": "dev.invisionx.skoolyardbuildertest",
+  "gameFolder": ".",
+  "entryFile": "index.html",
+  "autoUpdates": true,
+  "installPath": "apk-install.html",
+  "repository": "InVisionx/vader_zim_shooter",
+  "signerSha256": "a4e6df49a51f182fc61b8093785d09a8eb9c8baf7d3820291ce4d00723a01644"
+}
