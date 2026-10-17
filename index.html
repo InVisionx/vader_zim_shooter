@@ -3175,7 +3175,7 @@ const tvOptions=document.getElementById('tv-options');
 tvOptions.innerHTML='<label>Input <select id="input-mode"><option value="auto" selected>Automatic</option><option value="controller">Controller / TV</option><option value="mouse">Keyboard + mouse</option></select></label><label>Right stick <select id="pad-look-axes"><option value="2,3">Axes 2 / 3 (standard)</option><option value="2,5">Axes 2 / 5</option><option value="3,4">Axes 3 / 4</option></select></label><label>Look speed <select id="pad-sensitivity"><option value="1.4">Slow</option><option value="2.2" selected>Normal</option><option value="3.2">Fast</option></select></label><label><input id="pad-invert" type="checkbox"> Invert Y</label><label><input id="tv-fullscreen" type="checkbox"> Fullscreen on deploy</label>';
 for(const id of ['sel-start-weapon','chk-music']){const el=document.getElementById(id);tvOptions.appendChild(el.closest('label'));}
 const badge=document.createElement('div');badge.id='tv-input-badge';badge.textContent='WASD + mouse · Connect controller and press a button';document.body.appendChild(badge);
-function controllerMode(){const mode=document.getElementById('input-mode').value;return mode==='controller'||(mode==='auto'&&padInput.connected);}
+function controllerMode(){const mode=document.getElementById('input-mode').value;return mode==='controller'||(mode==='auto'&&padInput.connected&&padHasActivity);}
 const diagnostic=document.createElement('div');diagnostic.id='pad-diagnostic';diagnostic.style.cssText='position:fixed;top:12px;left:50%;transform:translateX(-50%);width:min(900px,90vw);z-index:100;background:#07101fed;border:1px solid #b5ff64;border-radius:8px;padding:10px 14px;font:15px monospace;line-height:1.4;color:#e1efdc;overflow-wrap:anywhere;white-space:pre-line;pointer-events:none';document.body.appendChild(diagnostic);
 let padHasActivity=false,previousPadSample='',padError='';
 if(/Silk/i.test(navigator.userAgent||'')){const note=document.createElement('p');note.style.cssText='color:#ffd18c;font-size:15px;line-height:1.4';note.textContent='Fire TV / Silk: Amazon documents incomplete gamepad input support in this browser. A controlling the browser cursor is not live gamepad input. Check the axis readings below; if they do not change, the website cannot receive your sticks. Use a compatible browser/device, or a computer connected to the TV.';document.getElementById('controller-card').appendChild(note);}
@@ -3190,7 +3190,24 @@ window.addEventListener('keydown',e=>{
  if(code==='MediaPlayPause'){e.preventDefault();if(!e.repeat){if(gameState.isPlaying)pauseMatch();else btnDeploy.click();}return;}
  if(gameState.isPlaying&&!padInput.connected&&code==='Enter'){e.preventDefault();if(!e.repeat&&player.isGrounded){player.vel.y=11;player.isGrounded=false;}}
 });
-const menuItems=()=>[btnDeploy,...tvOptions.querySelectorAll('select,input')];
+const mappingLabel=document.createElement('label');mappingLabel.innerHTML='Fire button <select id="pad-fire-button">'+Array.from({length:18},(_,i)=>'<option value="'+i+'" '+(i===7?'selected':'')+'>Button '+i+(i===7?' (RT standard)':'')+'</option>').join('')+'</select>';tvOptions.appendChild(mappingLabel);
+const calibrateButton=document.createElement('button');calibrateButton.textContent='SET UP STICKS';calibrateButton.className='doom-btn';tvOptions.appendChild(calibrateButton);
+const stickMapping=[0,1,2,3],stickSigns=[1,1,1,1];
+let calibration=null;
+const calibrationPrompts=['Push LEFT stick RIGHT','Push LEFT stick UP','Push RIGHT stick RIGHT','Push RIGHT stick UP'];
+calibrateButton.addEventListener('click',()=>{calibration={step:0,rest:null,neutral:false,last:null};});
+function calibrateSticks(p){
+ if(!calibration)return false;
+ const c=calibration;
+ if(!c.rest)c.rest=Array.from(p.axes);
+ const differences=Array.from(p.axes,(v,i)=>v-(c.rest[i]||0));
+ const magnitude=Math.max(0,...differences.map(Math.abs));
+ if(c.neutral){diagnostic.textContent='BUILD v4 · Release the stick to center';if(magnitude<.22)c.neutral=false;return true;}
+ diagnostic.textContent='BUILD v4 · Stick setup '+(c.step+1)+'/4: '+calibrationPrompts[c.step]+' and hold briefly';
+ if(magnitude>.65){const axis=differences.findIndex(v=>Math.abs(v)===magnitude);stickMapping[c.step]=axis;stickSigns[c.step]=(differences[axis]>0?1:-1)*(c.step%2===0?1:-1);c.step++;if(c.step===4){calibration=null;diagnostic.textContent='BUILD v4 · Sticks configured. Press A to deploy.';}else c.neutral=true;}
+ return true;
+}
+const menuItems=()=>[btnDeploy,...tvOptions.querySelectorAll('select,input,button')];
 function resetInputs(){padInput.x=padInput.y=0;padInput.fire=padInput.jump=padInput.sprint=false;isFiringMouse=false;gameState.isADS=false;padOwnsADS=false;for(const k in keys)keys[k]=false;}
 function pauseMatch(){gameState.isPlaying=false;resetInputs();overlayScreen.classList.remove('hidden');if(document.pointerLockElement)document.exitPointerLock();}
 function axisPair(x=0,y=0){const n=Math.hypot(x,y);if(n<.18)return [0,0];const v=Math.min(1,(n-.18)/.82);return [x/n*v,y/n*v];}
@@ -3200,17 +3217,18 @@ function pollController(dt){
  let pads=[];padError='';try{const getPads=navigator.getGamepads||navigator.webkitGetGamepads;pads=getPads?Array.from(getPads.call(navigator)):[];if(!getPads)padError='This browser does not expose the Gamepad API.';}catch(err){padError='Gamepad access blocked: '+err.message;}
  const available=pads.filter(p=>p&&p.connected!==false);
  let p=available.find(p=>p.buttons.some(b=>b.pressed)||p.axes.some(a=>Math.abs(a)>.3))||available.find(p=>p.index===padIndex)||available[0];
- if(!p){badge.textContent='v3 · Keyboard + mouse · Click game to capture mouse';diagnostic.textContent='BUILD v3 · '+(padError||'No gamepad data received. If A acts like a mouse click, the TV may be exposing only remote/mouse input. Pair the controller in gamepad mode, or use a browser/device with Gamepad API support.');document.getElementById('pad-status').textContent='No controller input detected · Press a button to connect';if(controllerMode())badge.textContent='Controller mode · Waiting for real gamepad input';if(padInput.connected){pauseMatch();document.getElementById('pad-status').textContent='Controller disconnected — reconnect and press a button';badge.textContent='Controller disconnected · Match paused';}padInput.connected=false;padPrevious=[];padIndex=null;return;}
+ if(!p){badge.textContent='v4 · Keyboard + mouse · Click game to capture mouse';diagnostic.textContent='BUILD v4 · '+(padError||'No gamepad data received. If A acts like a mouse click, the TV may be exposing only remote/mouse input. Pair the controller in gamepad mode, or use a browser/device with Gamepad API support.');document.getElementById('pad-status').textContent='No controller input detected · Press a button to connect';if(controllerMode())badge.textContent='Controller mode · Waiting for real gamepad input';if(padInput.connected){pauseMatch();document.getElementById('pad-status').textContent='Controller disconnected — reconnect and press a button';badge.textContent='Controller disconnected · Match paused';}padInput.connected=false;padPrevious=[];padIndex=null;return;}
  if(padIndex!==p.index){padPrevious=p.buttons.map(b=>b.pressed);padIndex=p.index;padHasActivity=false;previousPadSample='';}
  padInput.connected=true;
  const down=i=>!!(p.buttons[i]&&(p.buttons[i].pressed||p.buttons[i].value>.45));
  const pressed=i=>down(i)&&!padPrevious[i];
  const sample=JSON.stringify([p.axes,p.buttons.map(b=>b.value)]);
- if(previousPadSample&&sample!==previousPadSample)padHasActivity=true;previousPadSample=sample;
+ if((previousPadSample&&sample!==previousPadSample)||p.buttons.some(b=>b.pressed))padHasActivity=true;previousPadSample=sample;
  document.getElementById('pad-status').textContent=padHasActivity?'Live controller input confirmed': 'Controller listed · Move both sticks to test input';
- diagnostic.textContent='BUILD v3 · '+(p.id||'Unnamed controller')+' | '+(p.mapping||'nonstandard mapping')+' | '+p.axes.length+' axes / '+p.buttons.length+' buttons\nAxes: '+p.axes.map((v,i)=>i+': '+v.toFixed(2)).join('  ')+'\nPressed buttons: '+p.buttons.map((b,i)=>down(i)?i:null).filter(v=>v!==null).join(', ');
- if(!controllerMode()){padInput.x=padInput.y=0;padInput.fire=padInput.jump=padInput.sprint=false;padPrevious=p.buttons.map((b,i)=>down(i));badge.textContent='Keyboard + mouse mode · Change Input in menu for controller';return;}
- badge.textContent='v3 · LS move · RS look · RT fire · LT aim · A jump · Start pause';
+ diagnostic.textContent='BUILD v4 · '+(p.id||'Unnamed controller')+' | '+(p.mapping||'nonstandard mapping')+' | '+p.axes.length+' axes / '+p.buttons.length+' buttons\nAxes: '+p.axes.map((v,i)=>i+': '+v.toFixed(2)).join('  ')+'\nPressed buttons: '+p.buttons.map((b,i)=>down(i)?i:null).filter(v=>v!==null).join(', ');
+ if(calibrateSticks(p)){padPrevious=p.buttons.map((b,i)=>down(i));return;}
+ if(!controllerMode()){padInput.x=padInput.y=0;padInput.fire=padInput.jump=padInput.sprint=false;padPrevious=p.buttons.map((b,i)=>down(i));badge.textContent=padHasActivity?'Keyboard + mouse mode':'Controller listed · Press a controller button to activate';return;}
+ badge.textContent='v4 · LS move · RS look · RT fire · LT aim · A jump · Start pause';
  document.getElementById('touch-controls').classList.add('hidden');
  if(pressed(9)){if(gameState.isPlaying)pauseMatch();else {btnDeploy.click();btnDeploy.blur();}}
  else if(!gameState.isPlaying){
@@ -3220,13 +3238,13 @@ function pollController(dt){
  if((pressed(14)||pressed(15))&&el.tagName==='SELECT'){el.selectedIndex=(el.selectedIndex+(pressed(15)?1:el.options.length-1))%el.options.length;el.dispatchEvent(new Event('change'));}
  if(pressed(0)){if(el.tagName==='SELECT'){el.selectedIndex=(el.selectedIndex+1)%el.options.length;}else {el.click();if(el===btnDeploy)el.blur();}}
  }else{
- [padInput.x,padInput.y]=axisPair(p.axes[0],p.axes[1]);
- const lookAxes=document.getElementById('pad-look-axes').value.split(',').map(Number);const [rx,ry]=axisPair(p.axes[lookAxes[0]],p.axes[lookAxes[1]]);const speed=Number(document.getElementById('pad-sensitivity').value)*(gameState.isADS?.42:1);
+ [padInput.x,padInput.y]=axisPair((p.axes[stickMapping[0]]||0)*stickSigns[0],(p.axes[stickMapping[1]]||0)*stickSigns[1]);
+ const lookAxes=document.getElementById('pad-look-axes').value.split(',').map(Number);const [rx,ry]=axisPair((p.axes[stickMapping[2]===2?lookAxes[0]:stickMapping[2]]||0)*stickSigns[2],(p.axes[stickMapping[3]===3?lookAxes[1]:stickMapping[3]]||0)*stickSigns[3]);const speed=Number(document.getElementById('pad-sensitivity').value)*(gameState.isADS?.42:1);
  player.yaw-=rx*Math.abs(rx)*speed*dt;
  player.pitch=Math.max(-1.35,Math.min(1.35,player.pitch-ry*Math.abs(ry)*speed*dt*(document.getElementById('pad-invert').checked?-1:1)));
- padInput.fire=down(7);padInput.jump=pressed(0);padInput.sprint=down(10);
+ padInput.fire=down(Number(document.getElementById('pad-fire-button').value));padInput.jump=pressed(0);padInput.sprint=down(10);
  if(down(6)){gameState.isADS=true;padOwnsADS=true;}else if(padOwnsADS){gameState.isADS=false;padOwnsADS=false;}
- if(pressed(2)&&!gameState.isReloading&&currentWeapon().ammo<currentWeapon().maxAmmo)triggerReload();
+ if(pressed(2)&&Number(document.getElementById('pad-fire-button').value)!==2&&!gameState.isReloading&&currentWeapon().ammo<currentWeapon().maxAmmo)triggerReload();
  if(pressed(1)&&player.isGrounded&&!gameState.isSliding)triggerTacticalSlide();
  if(pressed(11)&&gameState.meleeCooldown<=0)triggerPakMeleeSlash();
  if(pressed(4)&&gameState.dashCooldown<=0)triggerSpiderLegDash();
