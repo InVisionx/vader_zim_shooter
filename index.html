@@ -177,6 +177,7 @@
         ::-webkit-scrollbar-track { background: #120520; }
         ::-webkit-scrollbar-thumb { background: #ff00aa; border-radius: 3px; }
     
+body.controller-playing,body.controller-playing canvas{cursor:none!important}
 /* Living-room edition: quiet surfaces, generous spacing, visible focus. */
 :root{--zim-green:#b5ff64;--irken-pink:#f467b8}
 body{font-family:'Rajdhani',Arial,sans-serif}
@@ -2158,14 +2159,14 @@ button:focus-visible,select:focus-visible,input:focus-visible,.pad-focus{outline
 
         let isFiringMouse = false;
         window.addEventListener('mousemove', (e) => {
-            if (!gameState.isPlaying || document.pointerLockElement !== canvas) return;
+            if (!gameState.isPlaying || controllerMode() || document.pointerLockElement !== canvas) return;
             const sens = gameState.isADS ? (gameState.currentWeaponIdx === 2 ? 0.0007 : 0.0012) : 0.0022;
             player.yaw -= e.movementX * sens;
             player.pitch = Math.max(-1.35, Math.min(1.35, player.pitch - e.movementY * sens));
         });
 
         window.addEventListener('mousedown', (e) => {
-            if (!gameState.isPlaying) return;
+            if (!gameState.isPlaying || controllerMode() || e.target !== canvas) return;
             if (document.pointerLockElement !== canvas && !('ontouchstart' in window)) {
                 try { const lock = canvas.requestPointerLock(); if (lock && lock.catch) lock.catch(() => {}); } catch (_) {}
             }
@@ -3084,14 +3085,15 @@ button:focus-visible,select:focus-visible,input:focus-visible,.pad-focus{outline
             audio.init();
             overlayScreen.classList.add('hidden');
             gameState.isPlaying = true;
+            btnDeploy.blur();
             triggerCommsCallout(0);
-            if (!padInput.connected && !('ontouchstart' in window) && canvas.requestPointerLock) {
+            if (!controllerMode() && !('ontouchstart' in window) && canvas.requestPointerLock) {
                 canvas.requestPointerLock();
             }
         });
 
         document.addEventListener('pointerlockchange', () => {
-            if (document.pointerLockElement !== canvas && gameState.isPlaying && !padInput.connected && !('ontouchstart' in window)) {
+            if (document.pointerLockElement !== canvas && gameState.isPlaying && !controllerMode() && !('ontouchstart' in window)) {
                 gameState.isPlaying = false;
                 isFiringMouse = false;
                 overlayScreen.classList.remove('hidden');
@@ -3169,34 +3171,50 @@ button:focus-visible,select:focus-visible,input:focus-visible,.pad-focus{outline
 const padInput = {x:0,y:0,fire:false,jump:false,sprint:false,connected:false};
 let padPrevious=[],padIndex=null,padFocus=0,padOwnsADS=false;
 const tvOptions=document.getElementById('tv-options');
-tvOptions.innerHTML='<label>Look speed <select id="pad-sensitivity"><option value="1.4">Slow</option><option value="2.2" selected>Normal</option><option value="3.2">Fast</option></select></label><label><input id="pad-invert" type="checkbox"> Invert Y</label><label><input id="tv-fullscreen" type="checkbox"> Fullscreen on deploy</label>';
+tvOptions.innerHTML='<label>Input <select id="input-mode"><option value="controller" selected>Controller / TV</option><option value="mouse">Keyboard + mouse</option></select></label><label>Right stick <select id="pad-look-axes"><option value="2,3">Axes 2 / 3 (standard)</option><option value="2,5">Axes 2 / 5</option><option value="3,4">Axes 3 / 4</option></select></label><label>Look speed <select id="pad-sensitivity"><option value="1.4">Slow</option><option value="2.2" selected>Normal</option><option value="3.2">Fast</option></select></label><label><input id="pad-invert" type="checkbox"> Invert Y</label><label><input id="tv-fullscreen" type="checkbox"> Fullscreen on deploy</label>';
 for(const id of ['sel-start-weapon','chk-music']){const el=document.getElementById(id);tvOptions.appendChild(el.closest('label'));}
 const badge=document.createElement('div');badge.id='tv-input-badge';badge.textContent='WASD + mouse · Connect controller and press a button';document.body.appendChild(badge);
+function controllerMode(){return document.getElementById('input-mode').value!=='mouse';}
+const diagnostic=document.createElement('div');diagnostic.id='pad-diagnostic';diagnostic.style.cssText='font:13px monospace;color:#bbc8dc;margin:12px 0;overflow-wrap:anywhere;white-space:pre-line';document.getElementById('controller-card').appendChild(diagnostic);
+let padHasActivity=false,previousPadSample='',padError='';
+if(/Silk/i.test(navigator.userAgent||'')){const note=document.createElement('p');note.style.cssText='color:#ffd18c;font-size:15px;line-height:1.4';note.textContent='Fire TV / Silk: Amazon documents incomplete gamepad input support in this browser. A controlling the browser cursor is not live gamepad input. Check the axis readings below; if they do not change, the website cannot receive your sticks. Use a compatible browser/device, or a computer connected to the TV.';document.getElementById('controller-card').appendChild(note);}
+
+document.getElementById('input-mode').addEventListener('change',()=>{resetInputs();if(controllerMode()&&document.pointerLockElement)document.exitPointerLock();});
+// Suppress TV-generated mouse/Enter events in controller gameplay. They must not
+// turn A into fire or activate whichever menu element retained focus.
+for(const type of ['mousedown','mouseup','click','dblclick'])window.addEventListener(type,e=>{if(gameState.isPlaying&&controllerMode()){e.preventDefault();e.stopImmediatePropagation();}},true);
+window.addEventListener('keydown',e=>{if(gameState.isPlaying&&controllerMode()&&['Enter','Space'].includes(e.code)){e.preventDefault();e.stopImmediatePropagation();}},true);
 const menuItems=()=>[btnDeploy,...tvOptions.querySelectorAll('select,input')];
 function resetInputs(){padInput.x=padInput.y=0;padInput.fire=padInput.jump=padInput.sprint=false;isFiringMouse=false;gameState.isADS=false;padOwnsADS=false;for(const k in keys)keys[k]=false;}
 function pauseMatch(){gameState.isPlaying=false;resetInputs();overlayScreen.classList.remove('hidden');if(document.pointerLockElement)document.exitPointerLock();}
 function axisPair(x=0,y=0){const n=Math.hypot(x,y);if(n<.18)return [0,0];const v=Math.min(1,(n-.18)/.82);return [x/n*v,y/n*v];}
 function pollController(dt){
- let pads=[];try{pads=navigator.getGamepads?Array.from(navigator.getGamepads()):[];}catch(_){}
- let p=pads.find(p=>p&&p.index===padIndex)||pads.find(p=>p&&p.connected);
- if(!p){if(padInput.connected){pauseMatch();document.getElementById('pad-status').textContent='Controller disconnected — reconnect and press a button';badge.textContent='Controller disconnected · Match paused';}padInput.connected=false;padPrevious=[];padIndex=null;return;}
- if(padIndex!==p.index){padPrevious=p.buttons.map(b=>b.pressed);padIndex=p.index;}
+ document.body.classList.toggle("controller-playing",gameState.isPlaying&&controllerMode());
+ let pads=[];padError='';try{pads=navigator.getGamepads?Array.from(navigator.getGamepads()):[];if(!navigator.getGamepads)padError='This browser does not expose the Gamepad API.';}catch(err){padError='Gamepad access blocked: '+err.message;}
+ const available=pads.filter(p=>p&&p.connected!==false);
+ let p=available.find(p=>p.buttons.some(b=>b.pressed)||p.axes.some(a=>Math.abs(a)>.3))||available.find(p=>p.index===padIndex)||available[0];
+ if(!p){diagnostic.textContent=padError||'No gamepad data received. If A acts like a mouse click, the TV may be exposing only remote/mouse input. Pair the controller in gamepad mode, or use a browser/device with Gamepad API support.';document.getElementById('pad-status').textContent='No controller input detected · Press a button to connect';if(controllerMode())badge.textContent='Controller mode · Waiting for real gamepad input';if(padInput.connected){pauseMatch();document.getElementById('pad-status').textContent='Controller disconnected — reconnect and press a button';badge.textContent='Controller disconnected · Match paused';}padInput.connected=false;padPrevious=[];padIndex=null;return;}
+ if(padIndex!==p.index){padPrevious=p.buttons.map(b=>b.pressed);padIndex=p.index;padHasActivity=false;previousPadSample='';}
  padInput.connected=true;
  const down=i=>!!(p.buttons[i]&&(p.buttons[i].pressed||p.buttons[i].value>.45));
  const pressed=i=>down(i)&&!padPrevious[i];
- document.getElementById('pad-status').textContent=p.mapping==='standard'?'Controller connected · Ready to deploy':'Controller detected · Nonstandard mapping may vary';
- badge.textContent='LS move · RS look · RT fire · LT aim · A jump · Start pause';
+ const sample=JSON.stringify([p.axes,p.buttons.map(b=>b.value)]);
+ if(previousPadSample&&sample!==previousPadSample)padHasActivity=true;previousPadSample=sample;
+ document.getElementById('pad-status').textContent=padHasActivity?'Live controller input confirmed': 'Controller listed · Move both sticks to test input';
+ diagnostic.textContent=(p.id||'Unnamed controller')+' | '+(p.mapping||'nonstandard mapping')+' | '+p.axes.length+' axes / '+p.buttons.length+' buttons\nAxes: '+p.axes.map((v,i)=>i+': '+v.toFixed(2)).join('  ')+'\nPressed buttons: '+p.buttons.map((b,i)=>down(i)?i:null).filter(v=>v!==null).join(', ');
+ if(!controllerMode()){padInput.x=padInput.y=0;padInput.fire=padInput.jump=padInput.sprint=false;padPrevious=p.buttons.map((b,i)=>down(i));badge.textContent='Keyboard + mouse mode · Change Input in menu for controller';return;}
+ badge.textContent='v2 · LS move · RS look · RT fire · LT aim · A jump · Start pause';
  document.getElementById('touch-controls').classList.add('hidden');
- if(pressed(9)){if(gameState.isPlaying)pauseMatch();else btnDeploy.click();}
+ if(pressed(9)){if(gameState.isPlaying)pauseMatch();else {btnDeploy.click();btnDeploy.blur();}}
  else if(!gameState.isPlaying){
  const items=menuItems();
  if(pressed(12)||pressed(13)){padFocus=(padFocus+(pressed(13)?1:items.length-1))%items.length;items.forEach(e=>e.classList.remove('pad-focus'));items[padFocus].classList.add('pad-focus');items[padFocus].focus();}
  const el=items[padFocus];
  if((pressed(14)||pressed(15))&&el.tagName==='SELECT'){el.selectedIndex=(el.selectedIndex+(pressed(15)?1:el.options.length-1))%el.options.length;el.dispatchEvent(new Event('change'));}
- if(pressed(0)){if(el.tagName==='SELECT'){el.selectedIndex=(el.selectedIndex+1)%el.options.length;}else el.click();}
+ if(pressed(0)){if(el.tagName==='SELECT'){el.selectedIndex=(el.selectedIndex+1)%el.options.length;}else {el.click();if(el===btnDeploy)el.blur();}}
  }else{
  [padInput.x,padInput.y]=axisPair(p.axes[0],p.axes[1]);
- const [rx,ry]=axisPair(p.axes[2],p.axes[3]);const speed=Number(document.getElementById('pad-sensitivity').value)*(gameState.isADS?.42:1);
+ const lookAxes=document.getElementById('pad-look-axes').value.split(',').map(Number);const [rx,ry]=axisPair(p.axes[lookAxes[0]],p.axes[lookAxes[1]]);const speed=Number(document.getElementById('pad-sensitivity').value)*(gameState.isADS?.42:1);
  player.yaw-=rx*Math.abs(rx)*speed*dt;
  player.pitch=Math.max(-1.35,Math.min(1.35,player.pitch-ry*Math.abs(ry)*speed*dt*(document.getElementById('pad-invert').checked?-1:1)));
  padInput.fire=down(7);padInput.jump=pressed(0);padInput.sprint=down(10);
