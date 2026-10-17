@@ -26,6 +26,7 @@ public class MainActivity extends Activity implements InputManager.InputDeviceLi
     private final boolean[] keyButtons = new boolean[17];
     private int deviceId = -1;
     private boolean updateCheckStarted;
+    private long loadedGameVersion;
     private boolean ready, dirty = true, active = false;
     private final Runnable pump = new Runnable() {
         @Override public void run() {
@@ -58,6 +59,7 @@ public class MainActivity extends Activity implements InputManager.InputDeviceLi
         findController();
         try {
             String html=GameUpdates.startupHTML(this);
+            loadedGameVersion=Math.max(BuildConfig.GAME_CONTENT_VERSION,getSharedPreferences("game-content",0).getLong("version",0));
             web.loadDataWithBaseURL("https://invisionx.github.io/vader_zim_shooter/", html, "text/html", "UTF-8", null);
         } catch (Exception e) {
             new AlertDialog.Builder(this).setTitle("Game could not load").setMessage(e.getMessage()).setPositiveButton("Close", (d,w)->finish()).show();
@@ -150,6 +152,18 @@ public class MainActivity extends Activity implements InputManager.InputDeviceLi
     }
     @Override protected void onResume() {
         super.onResume();active=true;dirty=true;
+        if(web!=null && ready) {
+            long cached=getSharedPreferences("game-content",0).getLong("version",0);
+            if(cached>loadedGameVersion) {
+                try {
+                    String html=GameUpdates.startupHTML(this);
+                    loadedGameVersion=Math.max(BuildConfig.GAME_CONTENT_VERSION,getSharedPreferences("game-content",0).getLong("version",0));
+                    ready=false;clearInput();
+                    web.loadDataWithBaseURL("https://invisionx.github.io/vader_zim_shooter/",html,"text/html","UTF-8",null);
+                }catch(Exception ignored) { }
+            }
+            GameUpdates.check(this);
+        }
         if(web!=null){web.onResume();web.resumeTimers();}handler.removeCallbacks(pump);handler.post(pump);immersive();
     }
     @Override public void onWindowFocusChanged(boolean focus){super.onWindowFocusChanged(focus);if(focus)immersive();}
