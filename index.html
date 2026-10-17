@@ -2123,33 +2123,34 @@ button:focus-visible,select:focus-visible,input:focus-visible,.pad-focus{outline
             isGrounded: true
         };
 
+        function inputCode(e){return e.code||({13:'Enter',32:'Space',37:'ArrowLeft',38:'ArrowUp',39:'ArrowRight',40:'ArrowDown',27:'Escape',179:'MediaPlayPause',87:'KeyW',65:'KeyA',83:'KeyS',68:'KeyD',82:'KeyR'}[e.keyCode])||e.key||'';}
         const keys = {};
         window.addEventListener('keydown', (e) => {
-            keys[e.code] = true;
+            keys[inputCode(e)] = true;
             if (!gameState.isPlaying) return;
 
-            if (e.code === 'Digit1') switchWeapon(0);
-            if (e.code === 'Digit2') switchWeapon(1);
-            if (e.code === 'Digit3') switchWeapon(2);
+            if (inputCode(e) === 'Digit1') switchWeapon(0);
+            if (inputCode(e) === 'Digit2') switchWeapon(1);
+            if (inputCode(e) === 'Digit3') switchWeapon(2);
 
-            if (e.code === 'KeyR' && !gameState.isReloading && currentWeapon().ammo < currentWeapon().maxAmmo) {
+            if (inputCode(e) === 'KeyR' && !gameState.isReloading && currentWeapon().ammo < currentWeapon().maxAmmo) {
                 triggerReload();
             }
-            if ((e.code === 'KeyC' || e.code === 'ControlLeft') && player.isGrounded && !gameState.isSliding) {
+            if ((inputCode(e) === 'KeyC' || inputCode(e) === 'ControlLeft') && player.isGrounded && !gameState.isSliding) {
                 triggerTacticalSlide();
             }
-            if ((e.code === 'KeyV' || e.code === 'KeyF') && gameState.meleeCooldown <= 0) {
+            if ((inputCode(e) === 'KeyV' || inputCode(e) === 'KeyF') && gameState.meleeCooldown <= 0) {
                 triggerPakMeleeSlash();
             }
-            if (e.code === 'KeyQ' && gameState.dashCooldown <= 0) {
+            if (inputCode(e) === 'KeyQ' && gameState.dashCooldown <= 0) {
                 triggerSpiderLegDash();
             }
-            if (e.code === 'KeyE' && gameState.orbitalCooldown <= 0) {
+            if (inputCode(e) === 'KeyE' && gameState.orbitalCooldown <= 0) {
                 triggerOrbitalDoomStrike();
             }
         });
 
-        window.addEventListener('keyup', (e) => { keys[e.code] = false; });
+        window.addEventListener('keyup', (e) => { keys[inputCode(e)] = false; });
 
         window.addEventListener('wheel', (e) => {
             if (!gameState.isPlaying) return;
@@ -2167,7 +2168,7 @@ button:focus-visible,select:focus-visible,input:focus-visible,.pad-focus{outline
 
         window.addEventListener('mousedown', (e) => {
             if (!gameState.isPlaying || controllerMode() || e.target !== canvas) return;
-            if (document.pointerLockElement !== canvas && !('ontouchstart' in window)) {
+            if (document.pointerLockElement !== canvas && canvas.requestPointerLock) {
                 try { const lock = canvas.requestPointerLock(); if (lock && lock.catch) lock.catch(() => {}); } catch (_) {}
             }
             if (e.button === 0) isFiringMouse = true;
@@ -3087,7 +3088,7 @@ button:focus-visible,select:focus-visible,input:focus-visible,.pad-focus{outline
             gameState.isPlaying = true;
             btnDeploy.blur();
             triggerCommsCallout(0);
-            if (!controllerMode() && !('ontouchstart' in window) && canvas.requestPointerLock) {
+            if (!controllerMode() && canvas.requestPointerLock) {
                 canvas.requestPointerLock();
             }
         });
@@ -3171,11 +3172,11 @@ button:focus-visible,select:focus-visible,input:focus-visible,.pad-focus{outline
 const padInput = {x:0,y:0,fire:false,jump:false,sprint:false,connected:false};
 let padPrevious=[],padIndex=null,padFocus=0,padOwnsADS=false;
 const tvOptions=document.getElementById('tv-options');
-tvOptions.innerHTML='<label>Input <select id="input-mode"><option value="controller" selected>Controller / TV</option><option value="mouse">Keyboard + mouse</option></select></label><label>Right stick <select id="pad-look-axes"><option value="2,3">Axes 2 / 3 (standard)</option><option value="2,5">Axes 2 / 5</option><option value="3,4">Axes 3 / 4</option></select></label><label>Look speed <select id="pad-sensitivity"><option value="1.4">Slow</option><option value="2.2" selected>Normal</option><option value="3.2">Fast</option></select></label><label><input id="pad-invert" type="checkbox"> Invert Y</label><label><input id="tv-fullscreen" type="checkbox"> Fullscreen on deploy</label>';
+tvOptions.innerHTML='<label>Input <select id="input-mode"><option value="auto" selected>Automatic</option><option value="controller">Controller / TV</option><option value="mouse">Keyboard + mouse</option></select></label><label>Right stick <select id="pad-look-axes"><option value="2,3">Axes 2 / 3 (standard)</option><option value="2,5">Axes 2 / 5</option><option value="3,4">Axes 3 / 4</option></select></label><label>Look speed <select id="pad-sensitivity"><option value="1.4">Slow</option><option value="2.2" selected>Normal</option><option value="3.2">Fast</option></select></label><label><input id="pad-invert" type="checkbox"> Invert Y</label><label><input id="tv-fullscreen" type="checkbox"> Fullscreen on deploy</label>';
 for(const id of ['sel-start-weapon','chk-music']){const el=document.getElementById(id);tvOptions.appendChild(el.closest('label'));}
 const badge=document.createElement('div');badge.id='tv-input-badge';badge.textContent='WASD + mouse · Connect controller and press a button';document.body.appendChild(badge);
-function controllerMode(){return document.getElementById('input-mode').value!=='mouse';}
-const diagnostic=document.createElement('div');diagnostic.id='pad-diagnostic';diagnostic.style.cssText='font:13px monospace;color:#bbc8dc;margin:12px 0;overflow-wrap:anywhere;white-space:pre-line';document.getElementById('controller-card').appendChild(diagnostic);
+function controllerMode(){const mode=document.getElementById('input-mode').value;return mode==='controller'||(mode==='auto'&&padInput.connected);}
+const diagnostic=document.createElement('div');diagnostic.id='pad-diagnostic';diagnostic.style.cssText='position:fixed;top:12px;left:50%;transform:translateX(-50%);width:min(900px,90vw);z-index:100;background:#07101fed;border:1px solid #b5ff64;border-radius:8px;padding:10px 14px;font:15px monospace;line-height:1.4;color:#e1efdc;overflow-wrap:anywhere;white-space:pre-line;pointer-events:none';document.body.appendChild(diagnostic);
 let padHasActivity=false,previousPadSample='',padError='';
 if(/Silk/i.test(navigator.userAgent||'')){const note=document.createElement('p');note.style.cssText='color:#ffd18c;font-size:15px;line-height:1.4';note.textContent='Fire TV / Silk: Amazon documents incomplete gamepad input support in this browser. A controlling the browser cursor is not live gamepad input. Check the axis readings below; if they do not change, the website cannot receive your sticks. Use a compatible browser/device, or a computer connected to the TV.';document.getElementById('controller-card').appendChild(note);}
 
@@ -3183,17 +3184,23 @@ document.getElementById('input-mode').addEventListener('change',()=>{resetInputs
 // Suppress TV-generated mouse/Enter events in controller gameplay. They must not
 // turn A into fire or activate whichever menu element retained focus.
 for(const type of ['mousedown','mouseup','click','dblclick'])window.addEventListener(type,e=>{if(gameState.isPlaying&&controllerMode()){e.preventDefault();e.stopImmediatePropagation();}},true);
-window.addEventListener('keydown',e=>{if(gameState.isPlaying&&controllerMode()&&['Enter','Space'].includes(e.code)){e.preventDefault();e.stopImmediatePropagation();}},true);
+window.addEventListener('keydown',e=>{if(gameState.isPlaying&&controllerMode()&&padInput.connected&&['Enter','Space'].includes(inputCode(e))){e.preventDefault();e.stopImmediatePropagation();}},true);
+window.addEventListener('keydown',e=>{
+ const code=inputCode(e);
+ if(code==='MediaPlayPause'){e.preventDefault();if(!e.repeat){if(gameState.isPlaying)pauseMatch();else btnDeploy.click();}return;}
+ if(gameState.isPlaying&&!padInput.connected&&code==='Enter'){e.preventDefault();if(!e.repeat&&player.isGrounded){player.vel.y=11;player.isGrounded=false;}}
+});
 const menuItems=()=>[btnDeploy,...tvOptions.querySelectorAll('select,input')];
 function resetInputs(){padInput.x=padInput.y=0;padInput.fire=padInput.jump=padInput.sprint=false;isFiringMouse=false;gameState.isADS=false;padOwnsADS=false;for(const k in keys)keys[k]=false;}
 function pauseMatch(){gameState.isPlaying=false;resetInputs();overlayScreen.classList.remove('hidden');if(document.pointerLockElement)document.exitPointerLock();}
 function axisPair(x=0,y=0){const n=Math.hypot(x,y);if(n<.18)return [0,0];const v=Math.min(1,(n-.18)/.82);return [x/n*v,y/n*v];}
 function pollController(dt){
  document.body.classList.toggle("controller-playing",gameState.isPlaying&&controllerMode());
- let pads=[];padError='';try{pads=navigator.getGamepads?Array.from(navigator.getGamepads()):[];if(!navigator.getGamepads)padError='This browser does not expose the Gamepad API.';}catch(err){padError='Gamepad access blocked: '+err.message;}
+ diagnostic.style.display=(!gameState.isPlaying||/Silk|AFT/i.test(navigator.userAgent||''))?'block':'none';
+ let pads=[];padError='';try{const getPads=navigator.getGamepads||navigator.webkitGetGamepads;pads=getPads?Array.from(getPads.call(navigator)):[];if(!getPads)padError='This browser does not expose the Gamepad API.';}catch(err){padError='Gamepad access blocked: '+err.message;}
  const available=pads.filter(p=>p&&p.connected!==false);
  let p=available.find(p=>p.buttons.some(b=>b.pressed)||p.axes.some(a=>Math.abs(a)>.3))||available.find(p=>p.index===padIndex)||available[0];
- if(!p){diagnostic.textContent=padError||'No gamepad data received. If A acts like a mouse click, the TV may be exposing only remote/mouse input. Pair the controller in gamepad mode, or use a browser/device with Gamepad API support.';document.getElementById('pad-status').textContent='No controller input detected · Press a button to connect';if(controllerMode())badge.textContent='Controller mode · Waiting for real gamepad input';if(padInput.connected){pauseMatch();document.getElementById('pad-status').textContent='Controller disconnected — reconnect and press a button';badge.textContent='Controller disconnected · Match paused';}padInput.connected=false;padPrevious=[];padIndex=null;return;}
+ if(!p){badge.textContent='v3 · Keyboard + mouse · Click game to capture mouse';diagnostic.textContent='BUILD v3 · '+(padError||'No gamepad data received. If A acts like a mouse click, the TV may be exposing only remote/mouse input. Pair the controller in gamepad mode, or use a browser/device with Gamepad API support.');document.getElementById('pad-status').textContent='No controller input detected · Press a button to connect';if(controllerMode())badge.textContent='Controller mode · Waiting for real gamepad input';if(padInput.connected){pauseMatch();document.getElementById('pad-status').textContent='Controller disconnected — reconnect and press a button';badge.textContent='Controller disconnected · Match paused';}padInput.connected=false;padPrevious=[];padIndex=null;return;}
  if(padIndex!==p.index){padPrevious=p.buttons.map(b=>b.pressed);padIndex=p.index;padHasActivity=false;previousPadSample='';}
  padInput.connected=true;
  const down=i=>!!(p.buttons[i]&&(p.buttons[i].pressed||p.buttons[i].value>.45));
@@ -3201,9 +3208,9 @@ function pollController(dt){
  const sample=JSON.stringify([p.axes,p.buttons.map(b=>b.value)]);
  if(previousPadSample&&sample!==previousPadSample)padHasActivity=true;previousPadSample=sample;
  document.getElementById('pad-status').textContent=padHasActivity?'Live controller input confirmed': 'Controller listed · Move both sticks to test input';
- diagnostic.textContent=(p.id||'Unnamed controller')+' | '+(p.mapping||'nonstandard mapping')+' | '+p.axes.length+' axes / '+p.buttons.length+' buttons\nAxes: '+p.axes.map((v,i)=>i+': '+v.toFixed(2)).join('  ')+'\nPressed buttons: '+p.buttons.map((b,i)=>down(i)?i:null).filter(v=>v!==null).join(', ');
+ diagnostic.textContent='BUILD v3 · '+(p.id||'Unnamed controller')+' | '+(p.mapping||'nonstandard mapping')+' | '+p.axes.length+' axes / '+p.buttons.length+' buttons\nAxes: '+p.axes.map((v,i)=>i+': '+v.toFixed(2)).join('  ')+'\nPressed buttons: '+p.buttons.map((b,i)=>down(i)?i:null).filter(v=>v!==null).join(', ');
  if(!controllerMode()){padInput.x=padInput.y=0;padInput.fire=padInput.jump=padInput.sprint=false;padPrevious=p.buttons.map((b,i)=>down(i));badge.textContent='Keyboard + mouse mode · Change Input in menu for controller';return;}
- badge.textContent='v2 · LS move · RS look · RT fire · LT aim · A jump · Start pause';
+ badge.textContent='v3 · LS move · RS look · RT fire · LT aim · A jump · Start pause';
  document.getElementById('touch-controls').classList.add('hidden');
  if(pressed(9)){if(gameState.isPlaying)pauseMatch();else {btnDeploy.click();btnDeploy.blur();}}
  else if(!gameState.isPlaying){
@@ -3230,7 +3237,7 @@ function pollController(dt){
 }
 window.addEventListener('blur',()=>{if(gameState.isPlaying)pauseMatch();});
 document.addEventListener('visibilitychange',()=>{if(document.hidden&&gameState.isPlaying)pauseMatch();});
-window.addEventListener('keydown',e=>{if(e.code==='Escape')pauseMatch();if(gameState.isPlaying&&['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code))e.preventDefault();});
+window.addEventListener('keydown',e=>{if(inputCode(e)==='Escape')pauseMatch();if(gameState.isPlaying&&['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(inputCode(e)))e.preventDefault();});
 btnPauseMenu.addEventListener('click',resetInputs);
 btnDeploy.addEventListener('click',()=>{resetInputs();if(audio.ctx&&audio.ctx.state==='suspended')audio.ctx.resume().catch(()=>{});if(document.getElementById('tv-fullscreen').checked&&!document.fullscreenElement&&document.documentElement.requestFullscreen)document.documentElement.requestFullscreen().catch(()=>{});});
 
